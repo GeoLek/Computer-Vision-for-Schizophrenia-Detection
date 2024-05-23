@@ -4,12 +4,12 @@ import nibabel as nib
 import tensorflow as tf
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv3D, MaxPooling3D, Flatten, Dense, Dropout, BatchNormalization
+from tensorflow.keras.layers import Input, Conv3D, MaxPooling3D, Flatten, Dense, Dropout, BatchNormalization, Activation
 from tensorflow.data import Dataset
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 import seaborn as sns
-from scipy.ndimage import rotate, shift, zoom
+from scipy.ndimage import rotate, shift
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
@@ -35,18 +35,11 @@ def random_shift(volume):
     volume = shift(volume, shift=shifts)
     return volume
 
-def random_zoom(volume):
-    zoom_factors = np.random.uniform(0.9, 1.1, size=3)
-    volume = zoom(volume, zoom=zoom_factors)
-    return volume
-
 def apply_augmentations(volume):
     if np.random.rand() > 0.5:
         volume = random_rotation(volume)
     if np.random.rand() > 0.5:
         volume = random_shift(volume)
-    if np.random.rand() > 0.5:
-        volume = random_zoom(volume)
     return volume
 
 # Generator function to yield data in batches
@@ -73,10 +66,6 @@ def data_generator(data, labels, batch_size, augment=False):
                     X.append(bold_data)
                     y.append(label)
 
-                # Check shapes before converting to NumPy array
-                if any(item.shape != X[0].shape for item in X):
-                    raise ValueError(f"Inconsistent shape found: {[item.shape for item in X]}")
-
                 X = np.array(X)[..., np.newaxis]  # Add channel dimension
                 y = to_categorical(np.array(y), num_classes=2)  # Convert labels to categorical
                 yield X, y
@@ -85,8 +74,8 @@ def data_generator(data, labels, batch_size, augment=False):
 
 # Load data into numpy arrays
 subjects, labels = [], []
-data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/Applied Brain Mask/3D Converted/'
-batch_size = 8
+data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/Applied Brain Mask & Regressed out confounds/3D Converted/'
+batch_size = 16
 for group in ['SCHZ', 'HC']:
     group_dir = os.path.join(data_dir, group)
     label = 0 if group == 'SCHZ' else 1
@@ -132,25 +121,22 @@ val_dataset = Dataset.from_generator(val_gen, output_types=(tf.float32, tf.float
 # Define an enhanced 3D CNN model with dropout layers
 def create_enhanced_3d_cnn(input_shape, num_classes=2):
     inputs = Input(shape=input_shape)
-    x = Conv3D(32, kernel_size=3, activation='relu', padding='same', kernel_regularizer=tf.keras.regularizers.l2(0.001))(inputs)
+    x = Conv3D(32, kernel_size=3, activation='relu', padding='same')(inputs)
     x = BatchNormalization()(x)
     x = MaxPooling3D(pool_size=2)(x)
-    x = Dropout(0.3)(x)
-    x = Conv3D(64, kernel_size=3, activation='relu', padding='same', kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+    x = Conv3D(64, kernel_size=3, activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = MaxPooling3D(pool_size=2)(x)
-    x = Dropout(0.3)(x)
-    x = Conv3D(128, kernel_size=3, activation='relu', padding='same', kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+    x = Conv3D(128, kernel_size=3, activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = MaxPooling3D(pool_size=2)(x)
-    x = Dropout(0.3)(x)
     x = Flatten()(x)
-    x = Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+    x = Dense(256, activation='relu')(x)
     x = Dropout(0.5)(x)
     outputs = Dense(num_classes, activation='softmax')(x)
 
     model = Model(inputs, outputs)
-    model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=Adam(learning_rate=0.1), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
 input_shape = (65, 77, 49, 1)
@@ -163,12 +149,12 @@ print("Available GPUs:", tf.config.list_physical_devices('GPU'))
 print("Using GPU:", tf.test.gpu_device_name())
 
 # Define callbacks
-early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 checkpoint = ModelCheckpoint('best_model.h5', monitor='val_loss', save_best_only=True, mode='min')
-lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, min_lr=1e-6)
+lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=1, min_lr=1e-6)
 
 # Training the enhanced model
-history = model.fit(train_dataset, epochs=100, validation_data=val_dataset, steps_per_epoch=len(X_train) // batch_size,
+history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, steps_per_epoch=len(X_train) // batch_size,
                     validation_steps=len(X_val) // batch_size, callbacks=[early_stopping, checkpoint, lr_scheduler])
 
 # Save the training history as a text file
