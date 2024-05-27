@@ -7,7 +7,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv3D, MaxPooling3D, Flatten, Dense, Dropout, BatchNormalization, Activation, GlobalAveragePooling3D, Add
 from tensorflow.data import Dataset
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score
 import seaborn as sns
 from scipy.ndimage import rotate, shift
 import tensorflow.keras.backend as K
@@ -173,6 +173,10 @@ input_shape = (65, 77, 49, 1)
 kfold = KFold(n_splits=5, shuffle=True, random_state=42)
 fold_no = 1
 accuracies = []
+precisions = []
+recalls = []
+f1s = []
+conf_matrices = []
 
 for train_index, val_index in kfold.split(X_resampled):
     print(f'\nTraining fold {fold_no}...\n')
@@ -193,11 +197,11 @@ for train_index, val_index in kfold.split(X_resampled):
     model.summary()
 
     # Define early stopping and model checkpoint callbacks
-    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
     checkpoint = ModelCheckpoint(f'best_model_fold_{fold_no}.h5', monitor='val_loss', save_best_only=True, mode='min')
 
     # Training the model
-    history = model.fit(train_dataset, epochs=5, validation_data=val_dataset, steps_per_epoch=len(X_train) // batch_size,
+    history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, steps_per_epoch=len(X_train) // batch_size,
                         validation_steps=len(X_val) // batch_size, callbacks=[early_stopping, checkpoint], verbose=2)
 
     # Save the training history as a text file
@@ -238,7 +242,7 @@ for train_index, val_index in kfold.split(X_resampled):
     best_model = tf.keras.models.load_model(f'best_model_fold_{fold_no}.h5')
 
     # Evaluate the model on the validation set and save performance metrics
-    val_gen = data_generator(X_val, y_val, batch_size)
+    val_gen = data_generator(X_val, y_val, batch_size, augment=False)
     val_dataset = Dataset.from_generator(val_gen, output_types=(tf.float32, tf.float32),
                                          output_shapes=((batch_size, 65, 77, 49, 1), (batch_size, 2)))
 
@@ -251,8 +255,15 @@ for train_index, val_index in kfold.split(X_resampled):
 
     # Calculate performance metrics
     accuracy = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred, average='weighted')
+    recall = recall_score(y_true, y_pred, average='weighted')
+    f1 = f1_score(y_true, y_pred, average='weighted')
     accuracies.append(accuracy)
+    precisions.append(precision)
+    recalls.append(recall)
+    f1s.append(f1)
     conf_matrix = confusion_matrix(y_true, y_pred)
+    conf_matrices.append(conf_matrix)
     class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'])
 
     # Print and save performance metrics
@@ -264,6 +275,9 @@ for train_index, val_index in kfold.split(X_resampled):
 
     with open(f'performance_metrics_fold_{fold_no}.txt', 'w') as f:
         f.write(f'Fold {fold_no} - Validation Accuracy: {accuracy:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation Precision: {precision:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation Recall: {recall:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation F1 Score: {f1:.4f}\n')
         f.write('Confusion Matrix:\n')
         f.write(np.array2string(conf_matrix))
         f.write('\nClassification Report:\n')
@@ -280,6 +294,35 @@ for train_index, val_index in kfold.split(X_resampled):
 
     fold_no += 1
 
-# Print the average accuracy across all folds
+# Calculate and print the average metrics across all folds
 average_accuracy = np.mean(accuracies)
+average_precision = np.mean(precisions)
+average_recall = np.mean(recalls)
+average_f1 = np.mean(f1s)
+
+# Calculate the average confusion matrix
+average_conf_matrix = np.mean(conf_matrices, axis=0).astype(int)
+
 print(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}')
+print(f'Average Validation Precision across all folds: {average_precision:.4f}')
+print(f'Average Validation Recall across all folds: {average_recall:.4f}')
+print(f'Average Validation F1 Score across all folds: {average_f1:.4f}')
+print('Average Confusion Matrix:')
+print(average_conf_matrix)
+
+with open('average_performance_metrics.txt', 'w') as f:
+    f.write(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}\n')
+    f.write(f'Average Validation Precision across all folds: {average_precision:.4f}\n')
+    f.write(f'Average Validation Recall across all folds: {average_recall:.4f}\n')
+    f.write(f'Average Validation F1 Score across all folds: {average_f1:.4f}\n')
+    f.write('Average Confusion Matrix:\n')
+    f.write(np.array2string(average_conf_matrix))
+
+# Plot average confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(average_conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'])
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.title('Average Confusion Matrix')
+plt.savefig('average_confusion_matrix.png')
+plt.show()

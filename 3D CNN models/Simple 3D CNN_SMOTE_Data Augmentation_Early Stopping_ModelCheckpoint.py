@@ -151,6 +151,7 @@ accuracies = []
 precisions = []
 recalls = []
 f1s = []
+conf_matrices = []
 
 for train_index, val_index in kfold.split(X_resampled):
     print(f'\nTraining fold {fold_no}...\n')
@@ -216,7 +217,7 @@ for train_index, val_index in kfold.split(X_resampled):
     best_model = tf.keras.models.load_model(f'best_model_fold_{fold_no}.h5')
 
     # Evaluate the model on the validation set and save performance metrics
-    val_gen = data_generator(X_val, y_val, batch_size)
+    val_gen = data_generator(X_val, y_val, batch_size, augment=False)
     val_dataset = Dataset.from_generator(val_gen, output_types=(tf.float32, tf.float32),
                                          output_shapes=((batch_size, 65, 77, 49, 1), (batch_size, 2)))
 
@@ -237,6 +238,7 @@ for train_index, val_index in kfold.split(X_resampled):
     recalls.append(recall)
     f1s.append(f1)
     conf_matrix = confusion_matrix(y_true, y_pred)
+    conf_matrices.append(conf_matrix)
     class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'])
 
     # Print and save performance metrics
@@ -273,13 +275,29 @@ average_precision = np.mean(precisions)
 average_recall = np.mean(recalls)
 average_f1 = np.mean(f1s)
 
+# Calculate the average confusion matrix
+average_conf_matrix = np.mean(conf_matrices, axis=0).astype(int)
+
 print(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}')
 print(f'Average Validation Precision across all folds: {average_precision:.4f}')
 print(f'Average Validation Recall across all folds: {average_recall:.4f}')
 print(f'Average Validation F1 Score across all folds: {average_f1:.4f}')
+print('Average Confusion Matrix:')
+print(average_conf_matrix)
 
 with open('average_performance_metrics.txt', 'w') as f:
     f.write(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}\n')
     f.write(f'Average Validation Precision across all folds: {average_precision:.4f}\n')
     f.write(f'Average Validation Recall across all folds: {average_recall:.4f}\n')
     f.write(f'Average Validation F1 Score across all folds: {average_f1:.4f}\n')
+    f.write('Average Confusion Matrix:\n')
+    f.write(np.array2string(average_conf_matrix))
+
+# Plot average confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(average_conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'])
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.title('Average Confusion Matrix')
+plt.savefig('average_confusion_matrix.png')
+plt.show()
