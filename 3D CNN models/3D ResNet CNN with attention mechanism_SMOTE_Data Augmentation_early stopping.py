@@ -17,14 +17,13 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import KFold
-
+from collections import defaultdict
 
 # Function to load NIfTI files
 def load_nifti_file(filepath):
     img = nib.load(filepath)
     data = img.get_fdata()
     return data
-
 
 # Custom augmentation functions
 def random_rotation(volume):
@@ -34,12 +33,10 @@ def random_rotation(volume):
     volume = rotate(volume, angle=angles[2], axes=(0, 1), reshape=False)
     return volume
 
-
 def random_shift(volume):
     shifts = np.random.uniform(-5, 5, size=volume.ndim)
     volume = shift(volume, shift=shifts)
     return volume
-
 
 def apply_augmentations(volume):
     augmented = False
@@ -50,7 +47,6 @@ def apply_augmentations(volume):
         volume = random_shift(volume)
         augmented = True
     return volume, augmented
-
 
 # Generator function to yield data in batches
 def data_generator(data, labels, batch_size, augment=False):
@@ -85,15 +81,15 @@ def data_generator(data, labels, batch_size, augment=False):
                 y = to_categorical(np.array(y), num_classes=2)  # Convert labels to categorical
                 yield X, y
 
-            print(f"Total augmented images this epoch: {augmented_count} out of {dataset_size} original images")  # Print total augmented images after each epoch
-            augmented_count = 0  # Reset count after each epoch
+            if augment:
+                print(f"Total augmented images this epoch: {augmented_count} out of {dataset_size} original images")  # Print total augmented images after each epoch
+                augmented_count = 0  # Reset count after each epoch
 
     return generator
 
-
 # Load data into numpy arrays
 subjects, labels = [], []
-data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/data_3d/'
+data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/Applied Brain Mask & Regressed out confounds/3D Converted/'
 batch_size = 8
 for group in ['SCHZ', 'HC']:
     group_dir = os.path.join(data_dir, group)
@@ -139,7 +135,6 @@ def channel_attention(input_tensor, reduction_ratio=16):
     x = multiply([input_tensor, se])
     return x
 
-
 # Define spatial attention block
 def spatial_attention(input_tensor):
     kernel_size = 7
@@ -149,7 +144,6 @@ def spatial_attention(input_tensor):
     x = Conv3D(1, kernel_size=kernel_size, strides=1, padding='same', activation='sigmoid')(concat)
     x = multiply([input_tensor, x])
     return x
-
 
 # Define attention residual block
 def attention_resnet_block(input_tensor, filters, kernel_size=3, strides=1):
@@ -169,7 +163,6 @@ def attention_resnet_block(input_tensor, filters, kernel_size=3, strides=1):
     x = Add()([x, shortcut])
     x = Activation('relu')(x)
     return x
-
 
 # Define the 3D ResNet with Attention model
 def create_3d_attention_resnet(input_shape, num_classes=2):
@@ -191,7 +184,6 @@ def create_3d_attention_resnet(input_shape, num_classes=2):
     model.compile(optimizer=Adam(learning_rate=0.00001), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-
 # Define the input shape for the model
 input_shape = (65, 77, 49, 1)
 
@@ -203,6 +195,13 @@ precisions = []
 recalls = []
 f1s = []
 conf_matrices = []
+class_reports = []
+
+# Initialize lists to store metrics across folds
+all_train_accuracies = []
+all_val_accuracies = []
+all_train_losses = []
+all_val_losses = []
 
 for train_index, val_index in kfold.split(X_resampled):
     print(f'\nTraining fold {fold_no}...\n')
@@ -241,6 +240,12 @@ for train_index, val_index in kfold.split(X_resampled):
             f.write(f"val_loss: {history.history['val_loss'][epoch]}\n")
             f.write("\n")
 
+    # Store metrics for averaging later
+    all_train_accuracies.append(history.history['accuracy'])
+    all_val_accuracies.append(history.history['val_accuracy'])
+    all_train_losses.append(history.history['loss'])
+    all_val_losses.append(history.history['val_loss'])
+
     # Plot training & validation accuracy values
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
@@ -251,7 +256,6 @@ for train_index, val_index in kfold.split(X_resampled):
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Validation'], loc='upper left')
 
-    # Plot training & validation loss values
     plt.subplot(1, 2, 2)
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
@@ -291,6 +295,7 @@ for train_index, val_index in kfold.split(X_resampled):
     conf_matrix = confusion_matrix(y_true, y_pred)
     conf_matrices.append(conf_matrix)
     class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'])
+    class_reports.append(class_report)
 
     # Print and save performance metrics
     print(f'\nFold {fold_no} - Validation Accuracy: {accuracy:.4f}')
@@ -329,13 +334,50 @@ average_f1 = np.mean(f1s)
 # Calculate the average confusion matrix
 average_conf_matrix = np.mean(conf_matrices, axis=0).astype(int)
 
-print(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}')
-print(f'Average Validation Precision across all folds: {average_precision:.4f}')
-print(f'Average Validation Recall across all folds: {average_recall:.4f}')
-print(f'Average Validation F1 Score across all folds: {average_f1:.4f}')
-print('Average Confusion Matrix:')
-print(average_conf_matrix)
+# Function to accumulate classification report
+def accumulate_classification_report(reports):
+    total_reports = len(reports)
+    avg_report = defaultdict(lambda: defaultdict(float))
 
+    for report in reports:
+        for label, metrics in report.items():
+            for metric, value in metrics.items():
+                avg_report[label][metric] += value
+
+    for label, metrics in avg_report.items():
+        for metric in metrics:
+            avg_report[label][metric] /= total_reports
+
+    return avg_report
+
+# Parse the classification reports into a suitable format
+parsed_reports = []
+for report in class_reports:
+    lines = report.split('\n')
+    report_dict = {}
+    for line in lines[2:-3]:
+        line = line.strip()
+        if line:
+            parts = line.split()
+            class_name = parts[0]
+            metrics = list(map(float, parts[1:]))
+            report_dict[class_name] = {
+                'precision': metrics[0],
+                'recall': metrics[1],
+                'f1-score': metrics[2],
+                'support': metrics[3],
+            }
+    parsed_reports.append(report_dict)
+
+# Calculate the average classification report
+average_classification_report = accumulate_classification_report(parsed_reports)
+
+# Print the average classification report
+print("Average Classification Report:")
+for label, metrics in average_classification_report.items():
+    print(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}")
+
+# Write the average classification report to the file
 with open('average_performance_metrics.txt', 'w') as f:
     f.write(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}\n')
     f.write(f'Average Validation Precision across all folds: {average_precision:.4f}\n')
@@ -343,6 +385,9 @@ with open('average_performance_metrics.txt', 'w') as f:
     f.write(f'Average Validation F1 Score across all folds: {average_f1:.4f}\n')
     f.write('Average Confusion Matrix:\n')
     f.write(np.array2string(average_conf_matrix))
+    f.write('\nAverage Classification Report:\n')
+    for label, metrics in average_classification_report.items():
+        f.write(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}\n")
 
 # Plot average confusion matrix
 plt.figure(figsize=(8, 6))
@@ -351,4 +396,32 @@ plt.ylabel('Actual')
 plt.xlabel('Predicted')
 plt.title('Average Confusion Matrix')
 plt.savefig('average_confusion_matrix.png')
+plt.show()
+
+# Calculate the average metrics
+average_train_accuracy = np.mean(all_train_accuracies, axis=0)
+average_val_accuracy = np.mean(all_val_accuracies, axis=0)
+average_train_loss = np.mean(all_train_losses, axis=0)
+average_val_loss = np.mean(all_val_losses, axis=0)
+
+# Plot the average training & validation accuracy and loss values
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.plot(average_train_accuracy)
+plt.plot(average_val_accuracy)
+plt.title('Average Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+
+plt.subplot(1, 2, 2)
+plt.plot(average_train_loss)
+plt.plot(average_val_loss)
+plt.title('Average Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+
+# Save average plots
+plt.savefig('average_training_metrics.png')
 plt.show()
