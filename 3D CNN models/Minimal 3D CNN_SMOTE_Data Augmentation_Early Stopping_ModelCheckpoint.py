@@ -7,7 +7,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv3D, MaxPooling3D, Flatten, Dense, Dropout, BatchNormalization, Activation
 from tensorflow.data import Dataset
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score
 import seaborn as sns
 from scipy.ndimage import rotate, shift
 import tensorflow.keras.backend as K
@@ -137,6 +137,9 @@ input_shape = (65, 77, 49, 1)
 kfold = KFold(n_splits=5, shuffle=True, random_state=42)
 fold_no = 1
 accuracies = []
+precisions = []
+recalls = []
+f1s = []
 
 for train_index, val_index in kfold.split(X_resampled):
     print(f'\nTraining fold {fold_no}...\n')
@@ -215,7 +218,13 @@ for train_index, val_index in kfold.split(X_resampled):
 
     # Calculate performance metrics
     accuracy = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred, average='weighted')
+    recall = recall_score(y_true, y_pred, average='weighted')
+    f1 = f1_score(y_true, y_pred, average='weighted')
     accuracies.append(accuracy)
+    precisions.append(precision)
+    recalls.append(recall)
+    f1s.append(f1)
     conf_matrix = confusion_matrix(y_true, y_pred)
     class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'])
 
@@ -228,6 +237,9 @@ for train_index, val_index in kfold.split(X_resampled):
 
     with open(f'performance_metrics_fold_{fold_no}.txt', 'w') as f:
         f.write(f'Fold {fold_no} - Validation Accuracy: {accuracy:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation Precision: {precision:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation Recall: {recall:.4f}\n')
+        f.write(f'Fold {fold_no} - Validation F1 Score: {f1:.4f}\n')
         f.write('Confusion Matrix:\n')
         f.write(np.array2string(conf_matrix))
         f.write('\nClassification Report:\n')
@@ -244,6 +256,19 @@ for train_index, val_index in kfold.split(X_resampled):
 
     fold_no += 1
 
-# Print the average accuracy across all folds
+# Calculate and print the average metrics across all folds
 average_accuracy = np.mean(accuracies)
+average_precision = np.mean(precisions)
+average_recall = np.mean(recalls)
+average_f1 = np.mean(f1s)
+
 print(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}')
+print(f'Average Validation Precision across all folds: {average_precision:.4f}')
+print(f'Average Validation Recall across all folds: {average_recall:.4f}')
+print(f'Average Validation F1 Score across all folds: {average_f1:.4f}')
+
+with open('average_performance_metrics.txt', 'w') as f:
+    f.write(f'Average Validation Accuracy across all folds: {average_accuracy:.4f}\n')
+    f.write(f'Average Validation Precision across all folds: {average_precision:.4f}\n')
+    f.write(f'Average Validation Recall across all folds: {average_recall:.4f}\n')
+    f.write(f'Average Validation F1 Score across all folds: {average_f1:.4f}\n')
