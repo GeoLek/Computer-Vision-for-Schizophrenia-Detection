@@ -354,8 +354,9 @@ average_classification_report = accumulate_classification_report(parsed_reports)
 
 # Print the average classification report
 print("Average Classification Report:")
+print(f"{'Label':<15}{'Precision':<10}{'Recall':<10}{'F1-Score':<10}{'Support':<10}")
 for label, metrics in average_classification_report.items():
-    print(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}")
+    print(f"{label:<15}{metrics['precision']:<10.2f}{metrics['recall']:<10.2f}{metrics['f1-score']:<10.2f}{metrics['support']:<10.0f}")
 
 # Write the average classification report to the file
 with open('average_performance_metrics.txt', 'w') as f:
@@ -366,8 +367,9 @@ with open('average_performance_metrics.txt', 'w') as f:
     f.write('Average Confusion Matrix:\n')
     f.write(np.array2string(average_conf_matrix))
     f.write('\nAverage Classification Report:\n')
+    f.write(f"{'Label':<15}{'Precision':<10}{'Recall':<10}{'F1-Score':<10}{'Support':<10}\n")
     for label, metrics in average_classification_report.items():
-        f.write(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}\n")
+        f.write(f"{label:<15}{metrics['precision']:<10.2f}{metrics['recall']:<10.2f}{metrics['f1-score']:<10.2f}{metrics['support']:<10.0f}\n")
 
 # Plot average confusion matrix
 plt.figure(figsize=(8, 6))

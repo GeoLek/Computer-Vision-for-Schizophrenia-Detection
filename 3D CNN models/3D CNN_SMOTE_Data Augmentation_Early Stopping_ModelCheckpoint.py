@@ -120,8 +120,33 @@ X_resampled, y_resampled = smote.fit_resample(X_reshaped, y)
 # Reshape data back to original shape
 X_resampled = X_resampled.reshape((-1, 65, 77, 49))
 
+# Define the simpler 3D CNN model
+def create_simple_3d_cnn(input_shape, num_classes=2):
+    inputs = Input(shape=input_shape)
+    x = Conv3D(32, kernel_size=3, strides=2, padding='same')(inputs)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)
+
+    x = Conv3D(64, kernel_size=3, strides=2, padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)
+
+    x = Flatten()(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    outputs = Dense(num_classes, activation='softmax')(x)
+
+    model = Model(inputs, outputs)
+    model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+# Define the input shape for the model
+input_shape = (65, 77, 49, 1)
+
 # Initialize k-fold cross-validation
-kfold = KFold(n_splits=10, shuffle=True, random_state=42)
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
 fold_no = 1
 accuracies = []
 precisions = []
@@ -136,34 +161,9 @@ all_val_accuracies = []
 all_train_losses = []
 all_val_losses = []
 
-# Define an enhanced 3D CNN model with dropout layers
-def create_enhanced_3d_cnn(input_shape, num_classes=2):
-    inputs = Input(shape=input_shape)
-    x = Conv3D(32, kernel_size=3, activation='relu', padding='same')(inputs)
-    x = BatchNormalization()(x)
-    x = MaxPooling3D(pool_size=2)(x)
-    x = Conv3D(64, kernel_size=3, activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling3D(pool_size=2)(x)
-    x = Conv3D(128, kernel_size=3, activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling3D(pool_size=2)(x)
-    x = Flatten()(x)
-    x = Dense(256, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    outputs = Dense(num_classes, activation='softmax')(x)
-
-    model = Model(inputs, outputs)
-    model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
-
-input_shape = (65, 77, 49, 1)  # Define the input shape
-
-# Define callbacks
-early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-
 for train_index, val_index in kfold.split(X_resampled):
     print(f'\nTraining fold {fold_no}...\n')
+    print(f'Train indices: {train_index}\nValidation indices: {val_index}\n')
     X_train, X_val = X_resampled[train_index], X_resampled[val_index]
     y_train, y_val = y_resampled[train_index], y_resampled[val_index]
 
@@ -176,9 +176,11 @@ for train_index, val_index in kfold.split(X_resampled):
     val_dataset = Dataset.from_generator(val_gen, output_types=(tf.float32, tf.float32),
                                          output_shapes=((batch_size, 65, 77, 49, 1), (batch_size, 2)))
 
-    model = create_enhanced_3d_cnn(input_shape)
+    model = create_simple_3d_cnn(input_shape)
     model.summary()
 
+    # Define early stopping and model checkpoint callbacks
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
     checkpoint = ModelCheckpoint(f'best_model_fold_{fold_no}.h5', monitor='val_loss', save_best_only=True, mode='min')
 
     # Training the model
@@ -202,7 +204,7 @@ for train_index, val_index in kfold.split(X_resampled):
             f.write(f"val_loss: {history.history['val_loss'][epoch]}\n")
             f.write("\n")
 
-    # Plot training & validation accuracy and loss values
+    # Plot training & validation accuracy values
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
     plt.plot(history.history['accuracy'])
@@ -228,6 +230,10 @@ for train_index, val_index in kfold.split(X_resampled):
     best_model = tf.keras.models.load_model(f'best_model_fold_{fold_no}.h5')
 
     # Evaluate the model on the validation set and save performance metrics
+    val_gen = data_generator(X_val, y_val, batch_size, augment=False)
+    val_dataset = Dataset.from_generator(val_gen, output_types=(tf.float32, tf.float32),
+                                         output_shapes=((batch_size, 65, 77, 49, 1), (batch_size, 2)))
+
     y_true = []
     y_pred = []
 
@@ -246,7 +252,7 @@ for train_index, val_index in kfold.split(X_resampled):
     f1s.append(f1)
     conf_matrix = confusion_matrix(y_true, y_pred)
     conf_matrices.append(conf_matrix)
-    class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'])
+    class_report = classification_report(y_true, y_pred, target_names=['SCHZ', 'HC'], output_dict=True)
     class_reports.append(class_report)
 
     # Print and save performance metrics
@@ -254,7 +260,7 @@ for train_index, val_index in kfold.split(X_resampled):
     print('Confusion Matrix:')
     print(conf_matrix)
     print('Classification Report:')
-    print(class_report)
+    print(classification_report(y_true, y_pred, target_names=['SCHZ', 'HC']))
 
     with open(f'performance_metrics_fold_{fold_no}.txt', 'w') as f:
         f.write(f'Fold {fold_no} - Validation Accuracy: {accuracy:.4f}\n')
@@ -264,7 +270,7 @@ for train_index, val_index in kfold.split(X_resampled):
         f.write('Confusion Matrix:\n')
         f.write(np.array2string(conf_matrix))
         f.write('\nClassification Report:\n')
-        f.write(class_report)
+        f.write(classification_report(y_true, y_pred, target_names=['SCHZ', 'HC']))
 
     # Plot confusion matrix
     plt.figure(figsize=(8, 6))
@@ -282,7 +288,7 @@ average_accuracy = np.mean(accuracies)
 average_precision = np.mean(precisions)
 average_recall = np.mean(recalls)
 average_f1 = np.mean(f1s)
-average_conf_matrix = np.sum(conf_matrices, axis=0)
+average_conf_matrix = np.sum(conf_matrices, axis=0).astype(int)
 
 # Function to accumulate classification report
 def accumulate_classification_report(reports):
@@ -291,8 +297,9 @@ def accumulate_classification_report(reports):
 
     for report in reports:
         for label, metrics in report.items():
-            for metric, value in metrics.items():
-                avg_report[label][metric] += value
+            if isinstance(metrics, dict):  # Ensure metrics is a dictionary
+                for metric, value in metrics.items():
+                    avg_report[label][metric] += value
 
     for label, metrics in avg_report.items():
         for metric in metrics:
@@ -300,32 +307,15 @@ def accumulate_classification_report(reports):
 
     return avg_report
 
-# Parse the classification reports into a suitable format
-parsed_reports = []
-for report in class_reports:
-    lines = report.split('\n')
-    report_dict = {}
-    for line in lines[2:-3]:
-        line = line.strip()
-        if line:
-            parts = line.split()
-            class_name = parts[0]
-            metrics = list(map(float, parts[1:]))
-            report_dict[class_name] = {
-                'precision': metrics[0],
-                'recall': metrics[1],
-                'f1-score': metrics[2],
-                'support': metrics[3],
-            }
-    parsed_reports.append(report_dict)
-
 # Calculate the average classification report
-average_classification_report = accumulate_classification_report(parsed_reports)
+average_classification_report = accumulate_classification_report(class_reports)
 
 # Print the average classification report
 print("Average Classification Report:")
+print(f"{'Label':<15}{'Precision':<10}{'Recall':<10}{'F1-Score':<10}{'Support':<10}")
 for label, metrics in average_classification_report.items():
-    print(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}")
+    if isinstance(metrics, dict):  # Ensure metrics is a dictionary
+        print(f"{label:<15}{metrics['precision']:<10.2f}{metrics['recall']:<10.2f}{metrics['f1-score']:<10.2f}{int(metrics['support']):<10}")
 
 # Write the average classification report to the file
 with open('average_performance_metrics.txt', 'w') as f:
@@ -336,12 +326,15 @@ with open('average_performance_metrics.txt', 'w') as f:
     f.write('Average Confusion Matrix:\n')
     f.write(np.array2string(average_conf_matrix))
     f.write('\nAverage Classification Report:\n')
+    f.write(f"{'Label':<15}{'Precision':<10}{'Recall':<10}{'F1-Score':<10}{'Support':<10}\n")
     for label, metrics in average_classification_report.items():
-        f.write(f"{label: <15} {metrics['precision']:.2f} {metrics['recall']:.2f} {metrics['f1-score']:.2f} {metrics['support']:.0f}\n")
+        if isinstance(metrics, dict):  # Ensure metrics is a dictionary
+            f.write(f"{label:<15}{metrics['precision']:<10.2f}{metrics['recall']:<10.2f}{metrics['f1-score']:<10.2f}{int(metrics['support']):<10}\n")
 
 # Plot average confusion matrix
 plt.figure(figsize=(8, 6))
-sns.heatmap(average_conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'])
+sns.heatmap(average_conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'],
+            cbar_kws={'label': 'Count'}, annot_kws={"size": 14, "color": 'black'})
 plt.ylabel('Actual')
 plt.xlabel('Predicted')
 plt.title('Average Confusion Matrix')
