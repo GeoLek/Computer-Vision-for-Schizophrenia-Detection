@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score
 import seaborn as sns
 from scipy.ndimage import rotate, shift
-import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from imblearn.over_sampling import SMOTE
@@ -188,10 +187,10 @@ for train_index, val_index in kfold.split(X_resampled):
                         validation_steps=len(X_val) // batch_size, callbacks=[early_stopping, checkpoint], verbose=2)
 
     # Append metrics to the lists
-    all_train_accuracies.append(history.history['accuracy'])
-    all_val_accuracies.append(history.history['val_accuracy'])
-    all_train_losses.append(history.history['loss'])
-    all_val_losses.append(history.history['val_loss'])
+    all_train_accuracies.append(np.pad(history.history['accuracy'], (0, max(0, 10 - len(history.history['accuracy']))), mode='constant', constant_values=np.nan))
+    all_val_accuracies.append(np.pad(history.history['val_accuracy'], (0, max(0, 10 - len(history.history['val_accuracy']))), mode='constant', constant_values=np.nan))
+    all_train_losses.append(np.pad(history.history['loss'], (0, max(0, 10 - len(history.history['loss']))), mode='constant', constant_values=np.nan))
+    all_val_losses.append(np.pad(history.history['val_loss'], (0, max(0, 10 - len(history.history['val_loss']))), mode='constant', constant_values=np.nan))
 
     # Save the training history as a text file
     history_file = f'training_history_fold_{fold_no}.txt'
@@ -294,16 +293,20 @@ average_conf_matrix = np.sum(conf_matrices, axis=0).astype(int)
 def accumulate_classification_report(reports):
     total_reports = len(reports)
     avg_report = defaultdict(lambda: defaultdict(float))
+    total_support = defaultdict(int)  # Dictionary to accumulate support values
 
     for report in reports:
         for label, metrics in report.items():
             if isinstance(metrics, dict):  # Ensure metrics is a dictionary
                 for metric, value in metrics.items():
                     avg_report[label][metric] += value
+                total_support[label] += metrics['support']  # Accumulate total support
 
     for label, metrics in avg_report.items():
         for metric in metrics:
-            avg_report[label][metric] /= total_reports
+            if metric != 'support':
+                avg_report[label][metric] /= total_reports
+        avg_report[label]['support'] = total_support[label]  # Use total support
 
     return avg_report
 
@@ -342,10 +345,10 @@ plt.savefig('average_confusion_matrix.png')
 plt.show()
 
 # Calculate the average metrics
-average_train_accuracy = np.mean(all_train_accuracies, axis=0)
-average_val_accuracy = np.mean(all_val_accuracies, axis=0)
-average_train_loss = np.mean(all_train_losses, axis=0)
-average_val_loss = np.mean(all_val_losses, axis=0)
+average_train_accuracy = np.nanmean(all_train_accuracies, axis=0)
+average_val_accuracy = np.nanmean(all_val_accuracies, axis=0)
+average_train_loss = np.nanmean(all_train_losses, axis=0)
+average_val_loss = np.nanmean(all_val_losses, axis=0)
 
 # Plot the average training & validation accuracy and loss values
 plt.figure(figsize=(12, 6))
