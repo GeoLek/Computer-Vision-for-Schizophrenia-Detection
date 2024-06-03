@@ -1,0 +1,13 @@
+Test Accuracy: 0.9297
+Confusion Matrix:
+[[ 66  15]
+ [  3 172]]
+Classification Report:
+              precision    recall  f1-score   support
+
+        SCHZ       0.96      0.81      0.88        81
+          HC       0.92      0.98      0.95       175
+
+    accuracy                           0.93       256
+   macro avg       0.94      0.90      0.92       256
+weighted avg       0.93      0.93      0.93       256
