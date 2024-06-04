@@ -58,7 +58,7 @@ def data_generator(data, labels, batch_size, augment=False):
         while True:
             for start_idx in range(0, dataset_size, batch_size):
                 batch_indices = indices[start_idx:start_idx + batch_size]
-                if len(batch_indices) < batch_size:
+                if (len(batch_indices) < batch_size):
                     continue  # Skip incomplete batches
 
                 X = []
@@ -86,7 +86,7 @@ def data_generator(data, labels, batch_size, augment=False):
 
 # Load data into numpy arrays
 subjects, labels = [], []
-data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/Applied Brain Mask & Regressed out confounds/3D Converted/'
+data_dir = '/home/orion/Geo/UCLA data/FMRIPrep/Brain Mask_Confounds_3D Converted'
 batch_size = 8
 for group in ['SCHZ', 'HC']:
     group_dir = os.path.join(data_dir, group)
@@ -109,12 +109,16 @@ for bold_path, label in zip(subjects, labels):
 X = np.array(X)
 y = np.array(y)
 
+print(f"Number of files before SMOTE: {len(X)}")
+
 # Reshape data for SMOTE
 X_reshaped = X.reshape((X.shape[0], -1))  # Flatten data
 
 # Apply SMOTE
 smote = SMOTE()
 X_resampled, y_resampled = smote.fit_resample(X_reshaped, y)
+
+print(f"Number of files after SMOTE: {len(X_resampled)}")
 
 # Reshape data back to original shape
 X_resampled = X_resampled.reshape((-1, 65, 77, 49))
@@ -270,6 +274,8 @@ for train_index, val_index in kfold.split(X_resampled):
         f.write(np.array2string(conf_matrix))
         f.write('\nClassification Report:\n')
         f.write(classification_report(y_true, y_pred, target_names=['SCHZ', 'HC']))
+        f.write(f'\nNumber of files after SMOTE: {len(X_resampled)}\n')
+        f.write(f'Number of files used for testing in fold {fold_no}: {len(X_val)}\n')
 
     # Plot confusion matrix
     plt.figure(figsize=(8, 6))
@@ -287,7 +293,8 @@ average_accuracy = np.mean(accuracies)
 average_precision = np.mean(precisions)
 average_recall = np.mean(recalls)
 average_f1 = np.mean(f1s)
-average_conf_matrix = np.sum(conf_matrices, axis=0).astype(int)
+average_conf_matrix = np.mean(conf_matrices, axis=0)
+average_conf_matrix_rounded = np.rint(average_conf_matrix).astype(int)
 
 # Function to accumulate classification report
 def accumulate_classification_report(reports):
@@ -327,16 +334,18 @@ with open('average_performance_metrics.txt', 'w') as f:
     f.write(f'Average Validation Recall across all folds: {average_recall:.4f}\n')
     f.write(f'Average Validation F1 Score across all folds: {average_f1:.4f}\n')
     f.write('Average Confusion Matrix:\n')
-    f.write(np.array2string(average_conf_matrix))
+    f.write(np.array2string(average_conf_matrix_rounded))
     f.write('\nAverage Classification Report:\n')
     f.write(f"{'Label':<15}{'Precision':<10}{'Recall':<10}{'F1-Score':<10}{'Support':<10}\n")
     for label, metrics in average_classification_report.items():
         if isinstance(metrics, dict):  # Ensure metrics is a dictionary
             f.write(f"{label:<15}{metrics['precision']:<10.2f}{metrics['recall']:<10.2f}{metrics['f1-score']:<10.2f}{int(metrics['support']):<10}\n")
+    f.write(f'Number of files after SMOTE: {len(X_resampled)}\n')
+    f.write(f'Number of files used for testing: {len(X_val)}\n')
 
 # Plot average confusion matrix
 plt.figure(figsize=(8, 6))
-sns.heatmap(average_conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'],
+sns.heatmap(average_conf_matrix_rounded, annot=True, fmt='d', cmap='Blues', xticklabels=['SCHZ', 'HC'], yticklabels=['SCHZ', 'HC'],
             cbar_kws={'label': 'Count'}, annot_kws={"size": 14, "color": 'black'})
 plt.ylabel('Actual')
 plt.xlabel('Predicted')
