@@ -17,11 +17,11 @@ After averaging the 4th dimensional of time, we preserved only the preprocessed 
 
 # Run on 3D preprocessed fMRI data
 
-After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. We used a 10 k-fold cross validation and extracted the average accuracy across all folds. Our 3D CNN achieved:
-# Average Accuracy = 82.3 %
+After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. We used data augmentation and a 10 k-fold cross validation and extracted the average accuracy across all folds. Our 3D CNN achieved:
+# Average Accuracy = 82 %
 
 # Performance Metrics
-[average_performance_metrics.txt](https://github.com/user-attachments/files/15937803/average_performance_metrics.txt)
+![performance metrics](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/b9d1e812-52cd-4db5-ab5d-8f685bb41ebb)
 
 # Confusion Matrix
 ![average_confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/96fa9e58-87d8-48db-a5c1-21e1bcb8efd6)
