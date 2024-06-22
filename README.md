@@ -1,4 +1,4 @@
-[performance_metrics.txt](https://github.com/user-attachments/files/15928839/performance_metrics.txt)# Computer-Vision-for-Schizophrenia-Detection
+# Computer-Vision-for-Schizophrenia-Detection
 An endeavor to create a Computer Vision project to detect Schizophrenia patients among Healthy Controls from fMRI data using 2D, 3D & 4D CNNs and a hybrid 3D CN + RNN (LSTM) model.
 
 # Dataset
@@ -14,6 +14,17 @@ After averaging the 4th dimensional of time, we preserved only the preprocessed 
 
 # Confusion Matrix
 ![confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/ad2a294d-423e-4957-9e82-238216150680)
+
+# Run on 3D preprocessed fMRI data
+
+After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. We used a 10 k-fold cross validation and extracted the average accuracy across all folds. Our 3D CNN achieved:
+# Average Accuracy = 82.3 %
+
+# Performance Metrics
+[average_performance_metrics.txt](https://github.com/user-attachments/files/15937803/average_performance_metrics.txt)
+
+# Confusion Matrix
+![average_confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/96fa9e58-87d8-48db-a5c1-21e1bcb8efd6)
 
 # LICENSE
 This project is licensed under the Apache License - see the [LICENSE](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/blob/main/LICENSE) file for details.
