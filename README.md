@@ -4,16 +4,38 @@ An endeavor to create a Computer Vision project to detect Schizophrenia patients
 # Dataset
 We will make use of the 4D fMRI data from the [UCLA](https://openfmri.org/dataset/ds000030/) dataset, under the revision 1.0.5. The data were preprocessed with the fMRIPrep pipeline.
 
-# Run on 3D preprocessed fMRI data
+# Run on 2D preprocessed fMRI data
 
-After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. Our simple 3D CNN achieved:
-# Accuracy = 96.7 %
+After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. Then we converted the 3D data to 2D images. Our 2D CNN achieved:
+# Accuracy = 93 %
 
 # Performance Metrics
-![Screenshot 2024-05-21 23:04:09](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/48470912-5b86-4cea-9b03-b9bf0ee4258d)
+![classification report](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/b61d5c3a-acd1-452c-879d-34b642888a04)
 
 # Confusion Matrix
-![confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/c0844a78-e3d7-4d18-a644-c551886de6c0)
+![confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/ad2a294d-423e-4957-9e82-238216150680)
+
+# Run on 3D preprocessed fMRI data
+
+After averaging the 4th dimensional of time, we preserved only the preprocessed fMRI data in 3 dimensions. We used data augmentation and a 10 k-fold cross validation and extracted the average accuracy across all folds. Our 3D CNN achieved:
+# Average Accuracy = 82 %
+
+# Performance Metrics
+![performance metrics](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/b9d1e812-52cd-4db5-ab5d-8f685bb41ebb)
+
+# Confusion Matrix
+![average_confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/96fa9e58-87d8-48db-a5c1-21e1bcb8efd6)
+
+# Run on 4D preprocessed fMRI data
+
+After initial analysis, we preserved all dimensions. We used a time distributed 3D CNN to make up for a 4D CNN. Our model achieved:
+# Accuracy = 75 %
+
+# Performance Metrics
+![classification report](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/c110524d-6bfb-4361-99a7-c49ebc0fe892)
+
+# Confusion Matrix
+![4D CNN_confusion_matrix](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/assets/89878177/33bda30f-3aef-47b1-8dc3-7afbb4053dba)
 
 # LICENSE
 This project is licensed under the Apache License - see the [LICENSE](https://github.com/GeoLek/Computer-Vision-for-Schizophrenia-Detection/blob/main/LICENSE) file for details.
