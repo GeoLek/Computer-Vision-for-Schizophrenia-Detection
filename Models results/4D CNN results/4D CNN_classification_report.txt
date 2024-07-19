@@ -1,0 +1,39 @@
+Classification Report:
+              precision    recall  f1-score   support
+
+        SCHZ       0.76      0.74      0.75       133
+          HC       0.74      0.77      0.76       133
+
+    accuracy                           0.75       266
+   macro avg       0.75      0.75      0.75       266
+weighted avg       0.75      0.75      0.75       266
+
+Confusion Matrix:
+[[ 98  35]
+ [ 31 102]]
+
+Detailed Report:
+SCHZ:
+  precision: 0.7596899224806202
+  recall: 0.7368421052631579
+  f1-score: 0.7480916030534351
+  support: 133.0
+
+HC:
+  precision: 0.7445255474452555
+  recall: 0.7669172932330827
+  f1-score: 0.7555555555555554
+  support: 133.0
+
+macro avg:
+  precision: 0.7521077349629378
+  recall: 0.7518796992481203
+  f1-score: 0.7518235793044953
+  support: 266.0
+
+weighted avg:
+  precision: 0.7521077349629379
+  recall: 0.7518796992481203
+  f1-score: 0.7518235793044953
+  support: 266.0
+
