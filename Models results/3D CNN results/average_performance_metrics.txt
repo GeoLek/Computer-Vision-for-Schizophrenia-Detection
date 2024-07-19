@@ -1,0 +1,15 @@
+Average Validation Accuracy across all folds: 0.8233
+Average Validation Precision across all folds: 0.8391
+Average Validation Recall across all folds: 0.8233
+Average Validation F1 Score across all folds: 0.8209
+Average Confusion Matrix:
+[[68 20]
+ [11 76]]
+Average Classification Report:
+Label          Precision Recall    F1-Score  Support   
+SCHZ           0.87      0.78      0.81      882       
+HC             0.80      0.87      0.83      878       
+macro avg      0.84      0.82      0.82      1760      
+weighted avg   0.84      0.82      0.82      1760      
+Number of files after SMOTE: 1776
+Number of files used for testing: 177
